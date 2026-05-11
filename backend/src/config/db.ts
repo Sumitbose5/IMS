@@ -1,16 +1,17 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
 import * as dotenv from 'dotenv';
+import { drizzle } from "drizzle-orm/node-postgres"; 
+import { Pool } from "pg"; 
+import * as schema from "../drizzle/schema";
 
 dotenv.config();
 
-const connectionString = process.env.DATABASE_URL;
+// Use the environment variable for security and flexibility
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  // Supabase pooler (6543) requires SSL in most cloud environments
+  ssl: {
+    rejectUnauthorized: false 
+  }
+});
 
-if (!connectionString) {
-  throw new Error('DATABASE_URL is missing in the .env file');
-}
-
-// Disable prefetch as it is not supported for "Transaction" pool mode in Supabase
-const queryClient = postgres(connectionString, { prepare: false });
-
-export const db = drizzle(queryClient);
+export const db = drizzle(pool, { schema });

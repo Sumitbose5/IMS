@@ -9,6 +9,10 @@ const PORT: number = 3000;
 // Initialize the database connection
 import { db } from './config/db';
 import { sql } from 'drizzle-orm';
+import authRoutes from './routes/authRoutes'
+import productRoutes from './routes/productRoutes'
+import utilsRoutes from './routes/utilsRoutes';
+import salesRoutes from './routes/salesRoutes';
 
 // CORS configuration
 app.use(cors({
@@ -23,6 +27,10 @@ app.use(cors({
 
 app.use(express.json());
 
+app.use('/auth', authRoutes);
+app.use('/product', productRoutes);
+app.use('/utils', utilsRoutes);
+app.use('/sales', salesRoutes);
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -31,24 +39,12 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-app.get('/', (req: Request, res: Response) => {
-  res.json({ 
-    message: 'Metric API Server is running!',
-    version: '1.0.0',
-    endpoints: {
-      code: '/api/code',
-      interview: '/api/interview',
-      problem: '/api/problem',
-      users: '/api/users',
-    }
-  });
-});
-
 // 404 handler for debugging unmatched routes
 app.use((req: Request, res: Response) => {
   console.warn(`No matching route for ${req.method} ${req.originalUrl}`);
   res.status(404).json({ error: 'Not Found', path: req.originalUrl });
 });
+
 
 const startServer = async () => {
   try {
