@@ -1,8 +1,9 @@
 import { Request, Response } from "express";
 import { eq, desc, and, gte, lt, inArray } from "drizzle-orm";
 import jwt from "jsonwebtoken";
-import puppeteer from "puppeteer";
-import type { Browser } from "puppeteer";
+import puppeteer from "puppeteer-core";
+import type { Browser } from "puppeteer-core";
+import chromium from '@sparticuz/chromium';
 import * as QRCode from "qrcode";
 import { db } from "../config/db";
 import { products, inventory, sales, saleItems, stockTransactions, users } from "../drizzle/schema";
@@ -1250,12 +1251,21 @@ export const generateSaleReport = async (req: Request, res: Response) => {
       }
     });
 
+    const executablePath = await chromium.executablePath();
     browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+      args: chromium.args,
+      // chromium.headless may not be exposed in the typings for this package,
+      // cast to any to preserve runtime behavior without a type error.
+      headless: (chromium as any).headless ?? true,
+      executablePath,
     });
+
+    if (!browser) {
+      throw new Error("Failed to launch browser");
+    }
+
     const page = await browser.newPage();
-    await page.setContent(buildSaleReportHtml(details, qrDataUrl), { waitUntil: "networkidle0" });
+  await page.setContent(buildSaleReportHtml(details, qrDataUrl), { waitUntil: "load" });
 
     const pdfBuffer = await page.pdf({
       format: "A4",
