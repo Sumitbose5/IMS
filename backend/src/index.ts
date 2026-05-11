@@ -3,14 +3,15 @@ dotenv.config();
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+
 const app = express();
-const PORT: number = 3000;
 
 // Initialize the database connection
 import { db } from './config/db';
 import { sql } from 'drizzle-orm';
-import authRoutes from './routes/authRoutes'
-import productRoutes from './routes/productRoutes'
+
+import authRoutes from './routes/authRoutes';
+import productRoutes from './routes/productRoutes';
 import utilsRoutes from './routes/utilsRoutes';
 import salesRoutes from './routes/salesRoutes';
 
@@ -28,11 +29,7 @@ app.use(cors({
 
 app.use(express.json());
 
-app.use('/auth', authRoutes);
-app.use('/product', productRoutes);
-app.use('/utils', utilsRoutes);
-app.use('/sales', salesRoutes);
-
+// Logger middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   console.log('Content-Type:', req.headers['content-type']);
@@ -40,29 +37,40 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// 404 handler for debugging unmatched routes
-app.use((req: Request, res: Response) => {
-  console.warn(`No matching route for ${req.method} ${req.originalUrl}`);
-  res.status(404).json({ error: 'Not Found', path: req.originalUrl });
-});
+// Routes
+app.use('/auth', authRoutes);
+app.use('/product', productRoutes);
+app.use('/utils', utilsRoutes);
+app.use('/sales', salesRoutes);
 
-app.get('/', (req: Request, res: Response) => {
-  res.send('Inventory Management wale aa gaye oyee!');
-});
-
-const startServer = async () => {
+// Root route
+app.get('/', async (req: Request, res: Response) => {
   try {
-    // Verify database connection
     await db.execute(sql`SELECT 1`);
-    console.log('✅ Database connected successfully');
 
-    app.listen(PORT, () => {
-      console.log(`✅ Server running at http://localhost:${PORT}`);
+    res.status(200).json({
+      success: true,
+      message: 'Inventory Management backend running 🚀'
     });
   } catch (error) {
-    console.error('❌ Failed to start the server:', error);
-    process.exit(1);
-  }
-};
+    console.error(error);
 
-startServer();
+    res.status(500).json({
+      success: false,
+      message: 'Database connection failed'
+    });
+  }
+});
+
+// 404 handler
+app.use((req: Request, res: Response) => {
+  console.warn(`No matching route for ${req.method} ${req.originalUrl}`);
+
+  res.status(404).json({
+    error: 'Not Found',
+    path: req.originalUrl
+  });
+});
+
+// Export app for Vercel
+export default app;
