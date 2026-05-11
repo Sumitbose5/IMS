@@ -46,6 +46,9 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({ error: 'Not Found', path: req.originalUrl });
 });
 
+app.get('/', (req: Request, res: Response) => {
+  res.send('Inventory Management wale aa gaye oyee!');
+});
 
 const startServer = async () => {
   try {
