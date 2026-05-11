@@ -123,27 +123,29 @@ const AuthPage = () => {
                     return;
                   }
 
-                  const resp = await fetch(`${import.meta.env.VITE_BASE_URL}/auth/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, email, password }),
-                  });
+                  toast.error('Registration is currently disabled.');
 
-                  if (!resp.ok) {
-                    const err = await resp.json().catch(() => ({ message: 'Register failed' }));
-                    toast.error(err.message || 'Register failed');
-                    return;
-                  }
+                  // const resp = await fetch(`${import.meta.env.VITE_BASE_URL}/auth/register`, {
+                  //   method: 'POST',
+                  //   headers: { 'Content-Type': 'application/json' },
+                  //   body: JSON.stringify({ name, email, password }),
+                  // });
 
-                  const data = await resp.json();
-                  const user = data.user || data;
-                  const userId = user?.id ?? user?.userId ?? '';
-                  const nameFromResp = user?.name ?? '';
-                  const emailFromResp = user?.email ?? email;
-                  setUser({ userId, name: nameFromResp, email: emailFromResp }, null);
-                  toast.success('Account created');
-                  setIsLogin(true);
-                  navigate('/dashboard');
+                  // if (!resp.ok) {
+                  //   const err = await resp.json().catch(() => ({ message: 'Register failed' }));
+                  //   toast.error(err.message || 'Register failed');
+                  //   return;
+                  // }
+
+                  // const data = await resp.json();
+                  // const user = data.user || data;
+                  // const userId = user?.id ?? user?.userId ?? '';
+                  // const nameFromResp = user?.name ?? '';
+                  // const emailFromResp = user?.email ?? email;
+                  // setUser({ userId, name: nameFromResp, email: emailFromResp }, null);
+                  // toast.success('Account created');
+                  // setIsLogin(true);
+                  // navigate('/dashboard');
                 }
               } catch (err: any) {
                 toast.error(err?.message || 'Network error');
