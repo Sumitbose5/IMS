@@ -17,6 +17,7 @@ import salesRoutes from './routes/salesRoutes';
 // CORS configuration
 app.use(cors({
   origin: [
+    'https://ims-frontend-omega.vercel.app',
     'http://localhost:5173',
     'http://127.0.0.1:5173'
   ],
