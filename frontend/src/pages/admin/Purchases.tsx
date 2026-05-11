@@ -1,9 +1,10 @@
-import { DownloadCloud, Plus, CreditCard, ShoppingCart, Box, Calendar, Printer, FileDown } from "lucide-react";
+import { Plus, CreditCard, ShoppingCart, Calendar, Printer, FileDown, RefreshCw } from "lucide-react";
 import PurchaseTable from "../../components/purchase/PurchaseTable";
 // Purchase details moved to modal
 // import PurchaseSidebar from '../../components/purchase/PurchaseSidebar';
 import PurchaseDetailsModal from '../../components/purchase/PurchaseDetailsModal';
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import AddPurchaseModal from '../../components/purchase/AddPurchaseModal';
 
 const Purchases = () => {
@@ -20,33 +21,45 @@ const Purchases = () => {
     const [totalDebt, setTotalDebt] = useState<number | null>(null);
     const [debtors, setDebtors] = useState<Array<any>>([]);
 
-    const fetchStats = async (y: number, m: number, full: boolean) => {
-        try {
-            const qs = new URLSearchParams({ year: String(y), month: String(m), fullYear: full ? '1' : '0' });
-            const res = await fetch(`${import.meta.env.VITE_BASE_URL}/utils/purchases?${qs.toString()}`);
-            if (!res.ok) return;
-            const data = await res.json();
-            setStats(data.stats ?? null);
-        } catch (e) {
-            console.error(e);
-        }
+    const fetchStats = async ({ queryKey }: { queryKey: any[] }) => {
+        const [_key, y, m, full] = queryKey;
+        const qs = new URLSearchParams({ year: String(y), month: String(m), fullYear: full ? '1' : '0' });
+        const res = await fetch(`${import.meta.env.VITE_BASE_URL}/utils/purchases?${qs.toString()}`);
+        if (!res.ok) throw new Error('Failed to load purchase stats');
+        return res.json();
     };
 
-    const fetchDebtors = async (y: number, m: number, full: boolean) => {
-        try {
-            const qs = new URLSearchParams({ year: String(y), month: String(m), fullYear: full ? '1' : '0' });
-            const res = await fetch(`${import.meta.env.VITE_BASE_URL}/utils/debtors?${qs.toString()}`);
-            if (!res.ok) return;
-            const data = await res.json();
-            setTotalDebt(Number(data.totalDebt || 0));
-            setDebtors(data.debtors || []);
-        } catch (e) {
-            console.error(e);
-        }
+    const fetchDebtors = async ({ queryKey }: { queryKey: any[] }) => {
+        const [_key, y, m, full] = queryKey;
+        const qs = new URLSearchParams({ year: String(y), month: String(m), fullYear: full ? '1' : '0' });
+        const res = await fetch(`${import.meta.env.VITE_BASE_URL}/utils/debtors?${qs.toString()}`);
+        if (!res.ok) throw new Error('Failed to load debtors');
+        return res.json();
     };
 
-    // fetch stats and debtors when filters change or refreshKey bumps
-    useEffect(() => { fetchStats(year, month, fullYear); fetchDebtors(year, month, fullYear); }, [year, month, fullYear, refreshKey]);
+    // use react-query to fetch stats and debtors; include refreshKey so manual refresh triggers dependent components
+    const { data: statsData, isFetching: statsFetching, refetch: refetchStats } = useQuery({
+        queryKey: ['purchases', year, month, fullYear, refreshKey],
+        queryFn: fetchStats,
+        staleTime: 1000 * 60 * 2,
+    });
+
+    const { data: debtorsData, isFetching: debtorsFetching, refetch: refetchDebtors } = useQuery({
+        queryKey: ['debtors', year, month, fullYear, refreshKey],
+        queryFn: fetchDebtors,
+        staleTime: 1000 * 60 * 2,
+    });
+
+    useEffect(() => {
+        if (statsData && typeof statsData === 'object' && 'stats' in (statsData as any)) setStats((statsData as any).stats);
+    }, [statsData]);
+
+    useEffect(() => {
+        if (debtorsData && typeof debtorsData === 'object') {
+            setTotalDebt(Number((debtorsData as any).totalDebt || 0));
+            setDebtors((debtorsData as any).debtors || []);
+        }
+    }, [debtorsData]);
 
     function formatDate(d?: string | number | Date) {
         if (!d) return '—';
@@ -70,12 +83,35 @@ const Purchases = () => {
                     </div>
 
                     <div className="flex items-center gap-3 ml-auto">
-                        <button className="inline-flex items-center gap-2 border border-gray-200 bg-white text-gray-700 px-4 py-2 rounded-lg shadow-sm font-semibold">
-                            <DownloadCloud className="w-4 h-4" />
-                            <span className="text-sm">Export Reports</span>
+                        <button
+                            onClick={async () => {
+                                // trigger refetches and bump refreshKey to refresh dependent components
+                                try {
+                                    await Promise.all([
+                                        refetchStats?.(),
+                                        refetchDebtors?.()
+                                    ]);
+                                } finally {
+                                    setRefreshKey(k => k + 1);
+                                }
+                            }}
+                            disabled={statsFetching || debtorsFetching}
+                            className="inline-flex items-center gap-2 border border-gray-200 bg-white text-gray-700 px-4 py-2 rounded-lg shadow-sm font-semibold cursor-pointer"
+                        >
+                            { (statsFetching || debtorsFetching) ? (
+                                <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                    <span className="text-sm">Refreshing</span>
+                                </>
+                            ) : (
+                                <>
+                                    <RefreshCw className="w-4 h-4" />
+                                    <span className="text-sm">Refresh</span>
+                                </>
+                            )}
                         </button>
 
-                        <button onClick={() => { setEditPurchaseId(null); setOpen(true); }} className="inline-flex items-center gap-2 bg-[#3125c4] text-white px-4 py-2 rounded-lg shadow-lg font-semibold">
+                        <button onClick={() => { setEditPurchaseId(null); setOpen(true); }} className="inline-flex items-center gap-2 bg-[#3125c4] text-white px-4 py-2 rounded-lg shadow-lg font-semibold cursor-pointer">
                             <Plus className="w-4 h-4" />
                             <span className="text-sm font-medium">New Purchase</span>
                         </button>
@@ -189,13 +225,13 @@ const Purchases = () => {
                         <div className="flex flex-wrap items-center gap-3">
 
                             {/* Print */}
-                            <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition">
+                            <button className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition cursor-not-allowed">
                                 <Printer className="w-4 h-4" />
                                 Print Report
                             </button>
 
                             {/* Export */}
-                            <button className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-700 transition">
+                            <button className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-semibold shadow-sm hover:bg-indigo-700 transition cursor-not-allowed">
                                 <FileDown className="w-4 h-4" />
                                 Export CSV
                             </button>

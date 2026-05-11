@@ -1,5 +1,6 @@
-import { Search, Download, Plus, TrendingUp, TrendingDown, Eye, Pencil } from "lucide-react";
+import { Download, Plus, TrendingUp, TrendingDown, Eye, Pencil, RefreshCw } from "lucide-react";
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import AddSaleModal from '../../components/sales/AddSaleModal';
 import SaleDetailsModal from '../../components/sales/SaleDetailsModal';
 
@@ -12,7 +13,6 @@ const SalesPage = () => {
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
   const [prevStats, setPrevStats] = useState<any>(null);
   const [sales, setSales] = useState<any[]>([]);
@@ -21,63 +21,56 @@ const SalesPage = () => {
   const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
   const [year, setYear] = useState<number>(new Date().getFullYear());
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const qs = new URLSearchParams();
-      if (preset) qs.set('preset', preset);
-      if (preset === '') {
-        qs.set('month', String(month));
-        qs.set('year', String(year));
-      }
-
-      const res = await fetch(`${import.meta.env.VITE_BASE_URL}/sales?${qs.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch');
-  const data = await res.json();
-  setStats(data.stats || null);
-  setOutstanding(data.outstanding || []);
-  setSales(data.sales || []);
-
-      // compute params for previous comparable period when possible
-      const prevParams = (() => {
-        if (preset === 'month' || preset === '') {
-          // previous month
-          let m = month - 1;
-          let y = year;
-          if (m < 1) { m = 12; y = year - 1; }
-          return `month=${m}&year=${y}`;
-        }
-        if (preset === 'year') {
-          return `year=${year - 1}&fullYear=1`;
-        }
-        // for 'today' and 'week' we don't request previous period — fallback to no data
-        return null;
-      })();
-
-      if (prevParams) {
-        try {
-          const pres = await fetch(`${import.meta.env.VITE_BASE_URL}/sales?${prevParams}`);
-          if (pres.ok) {
-            const pdata = await pres.json();
-            setPrevStats(pdata.stats || null);
-          } else {
-            setPrevStats(null);
-          }
-        } catch (e) {
-          console.error('prev fetch', e);
-          setPrevStats(null);
-        }
-      } else {
-        setPrevStats(null);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
+  const fetchSales = async ({ queryKey }: { queryKey: any[] }) => {
+    const [_key, presetQ, monthQ, yearQ] = queryKey;
+    const qs = new URLSearchParams();
+    if (presetQ) qs.set('preset', presetQ);
+    if (presetQ === '') {
+      qs.set('month', String(monthQ));
+      qs.set('year', String(yearQ));
     }
+
+    const res = await fetch(`${import.meta.env.VITE_BASE_URL}/sales?${qs.toString()}`);
+    if (!res.ok) throw new Error('Failed to fetch sales');
+    const data = await res.json();
+
+    // compute params for previous comparable period when possible
+    const prevParams = (() => {
+      if (presetQ === 'month' || presetQ === '') {
+        let m = monthQ - 1;
+        let y = yearQ;
+        if (m < 1) { m = 12; y = yearQ - 1; }
+        return `month=${m}&year=${y}`;
+      }
+      if (presetQ === 'year') {
+        return `year=${yearQ - 1}&fullYear=1`;
+      }
+      return null;
+    })();
+
+    let prev = null;
+    if (prevParams) {
+      try {
+        const pres = await fetch(`${import.meta.env.VITE_BASE_URL}/sales?${prevParams}`);
+        if (pres.ok) prev = (await pres.json()).stats || null;
+      } catch (e) {
+        // ignore prev fetch errors
+      }
+    }
+
+    return { stats: data.stats || null, prevStats: prev, sales: data.sales || [], outstanding: data.outstanding || [] };
   };
 
-  useEffect(() => { fetchData(); }, [preset, month, year]);
+  const { data, isLoading, isFetching, refetch } = useQuery({ queryKey: ['sales', preset, month, year], queryFn: fetchSales, staleTime: 1000 * 60 * 2 });
+
+  useEffect(() => {
+    if (data) {
+      setStats(data.stats);
+      setPrevStats(data.prevStats);
+      setSales(data.sales);
+      setOutstanding(data.outstanding);
+    }
+  }, [data]);
 
   const onPresetClick = (p: string) => { setPreset(p); };
 
@@ -91,15 +84,27 @@ const SalesPage = () => {
           <p className="text-gray-500 text-sm">Track all sales transactions and revenue insights</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input placeholder="Global Search..." className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-[#3125c4] outline-none text-sm" />
-          </div>
+          <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 font-semibold rounded-lg text-sm border border-gray-200 shadow-sm disabled:opacity-60 cursor-pointer"
+          >
+            {isFetching ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Refreshing
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </>
+            )}
+          </button>
 
-          {/* Export */}
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 font-semibold rounded-lg text-sm border border-blue-200">
+          {/* Export CSV (kept but disabled) */}
+          <button className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 font-semibold rounded-lg text-sm border border-blue-200 cursor-not-allowed">
             <Download className="w-4 h-4" />
             Export CSV
           </button>
@@ -116,7 +121,7 @@ const SalesPage = () => {
         isOpen={open}
         saleId={editingSaleId}
         onClose={() => { setOpen(false); setEditingSaleId(null); }}
-        onSaved={() => { setOpen(false); setEditingSaleId(null); fetchData(); }}
+        onSaved={() => { setOpen(false); setEditingSaleId(null); refetch(); }}
       />
       <SaleDetailsModal saleId={selectedSaleId ?? undefined} isOpen={detailOpen} onClose={() => { setDetailOpen(false); setSelectedSaleId(null); }} />
 
@@ -159,7 +164,7 @@ const SalesPage = () => {
           const prev = prevStats ? Number(prevStats[card.valueKey] || 0) : 0;
 
           // format display
-          const display = loading ? null : (card.valueKey === 'avgOrderValue' || card.valueKey === 'totalAmount' || card.valueKey === 'outstandingAmount') ? `₹${Number(curr || 0).toLocaleString('en-IN')}` : String(curr || 0);
+          const display = isLoading ? null : (card.valueKey === 'avgOrderValue' || card.valueKey === 'totalAmount' || card.valueKey === 'outstandingAmount') ? `₹${Number(curr || 0).toLocaleString('en-IN')}` : String(curr || 0);
 
           // compute change percent
           let changeText = '0%';
@@ -219,7 +224,7 @@ const SalesPage = () => {
           </thead>
 
           <tbody>
-            {loading ? (
+            {isLoading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <tr key={i} className="animate-pulse">
                   <td className="px-6 py-4"><Skeleton className="h-4 w-20" /></td>

@@ -11,6 +11,7 @@ const AuthPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
@@ -90,6 +91,7 @@ const AuthPage = () => {
             {/* Form */}
             <form className="space-y-4" onSubmit={async (e) => {
               e.preventDefault();
+              setLoading(true);
               try {
                 if (isLogin) {
                   const resp = await fetch(`${import.meta.env.VITE_BASE_URL}/auth/login`, {
@@ -145,6 +147,8 @@ const AuthPage = () => {
                 }
               } catch (err: any) {
                 toast.error(err?.message || 'Network error');
+              } finally {
+                setLoading(false);
               }
             }}>
 
@@ -154,7 +158,8 @@ const AuthPage = () => {
                   placeholder="Full Name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-indigo-500 outline-none text-sm"
+                  disabled={loading}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-indigo-500 outline-none text-sm disabled:opacity-60"
                 />
               )}
 
@@ -163,7 +168,8 @@ const AuthPage = () => {
                 placeholder="Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-indigo-500 outline-none text-sm"
+                disabled={loading}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-indigo-500 outline-none text-sm disabled:opacity-60"
               />
 
               <input
@@ -171,7 +177,8 @@ const AuthPage = () => {
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-indigo-500 outline-none text-sm"
+                disabled={loading}
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-indigo-500 outline-none text-sm disabled:opacity-60"
               />
 
               {!isLogin && (
@@ -180,15 +187,27 @@ const AuthPage = () => {
                   placeholder="Confirm Password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-indigo-500 outline-none text-sm"
+                  disabled={loading}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md focus:ring-1 focus:ring-indigo-500 outline-none text-sm disabled:opacity-60"
                 />
               )}
 
               <button
                 type="submit"
-                className="w-full bg-slate-900 hover:bg-slate-800 transition py-2.5 rounded-md font-medium text-white"
+                disabled={loading}
+                className="w-full bg-slate-900 hover:bg-slate-800 transition py-2.5 rounded-md font-medium text-white disabled:opacity-60 inline-flex items-center justify-center gap-2"
               >
-                {isLogin ? "Login" : "Create Account"}
+                {loading ? (
+                  <>
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="white" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="white" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                    </svg>
+                    <span>{isLogin ? 'Logging in...' : 'Creating...'}</span>
+                  </>
+                ) : (
+                  <>{isLogin ? 'Login' : 'Create Account'}</>
+                )}
               </button>
             </form>
 

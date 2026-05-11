@@ -29,6 +29,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
+import { useQuery } from '@tanstack/react-query';
 
 type DashboardStats = {
   totalItems: number;
@@ -152,9 +153,8 @@ const EmptyState = ({ text }: { text: string }) => (
 );
 
 export default function Dashboard() {
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // dashboard data is now handled by react-query
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null); // kept for typing fallback
   const [chartMode, setChartMode] = useState<"monthly" | "yearly">("monthly");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -164,33 +164,31 @@ export default function Dashboard() {
   const { token, user } = useAuth();
 
   const fetchDashboard = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`${API_BASE}/utils/dashboard`);
-      if (!response.ok) {
-        throw new Error("Unable to load dashboard data");
-      }
-
-      const data = (await response.json()) as DashboardData;
-      setDashboard(data);
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Unable to load dashboard data");
-    } finally {
-      setLoading(false);
+    const response = await fetch(`${API_BASE}/utils/dashboard`);
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(text || "Unable to load dashboard data");
     }
+    const data = (await response.json()) as DashboardData;
+    return data;
   };
 
-  useEffect(() => {
-    fetchDashboard();
-  }, []);
+  // use tanstack/react-query to fetch and cache dashboard data
+  const { data, isLoading, isError, error: queryError, refetch, isFetching } = useQuery<DashboardData, Error>({
+    queryKey: ['dashboard'],
+    queryFn: fetchDashboard,
+    staleTime: 1000 * 60 * 2,
+  });
 
-  const chartData = useMemo(
-    () => dashboard?.salesPerformance[chartMode] ?? [],
-    [chartMode, dashboard]
-  );
+  // assign query data into local dashboard variable for rest of file
+  useEffect(() => {
+    if (data) setDashboard(data as DashboardData);
+  }, [data]);
+
+  const loading = isLoading || isFetching;
+  const apiError = isError ? (queryError?.message ?? 'Unable to load dashboard data') : null;
+
+  const chartData = useMemo(() => dashboard?.salesPerformance[chartMode] ?? [], [chartMode, dashboard]);
 
   const stats = dashboard?.stats;
   const isPositiveSalesChange = (stats?.todayChangePercent ?? 0) >= 0;
@@ -335,11 +333,21 @@ export default function Dashboard() {
             Scan QR
           </button>
           <button
-            onClick={fetchDashboard}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-[13px] font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60 cursor-pointer"
           >
-            <RefreshCw size={16} />
-            Refresh
+            {isFetching ? (
+              <>
+                <RefreshCw size={16} className="animate-spin" />
+                Refreshing
+              </>
+            ) : (
+              <>
+                <RefreshCw size={16} />
+                Refresh
+              </>
+            )}
           </button>
           <Link
             to="/purchases"
@@ -357,9 +365,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {error && (
+      {apiError && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-          {error}
+          {apiError}
         </div>
       )}
 
